@@ -47,12 +47,22 @@ def _predict_probs(model, ds, batch_size, device):
 
 def train_model(model, train_ds, val_ds, *, epochs=50, lr=1e-5, batch_size=8,
                 patience=15, device="cpu", class_weights=None, log_every=5, tag="",
-                select_metric="f1_macro"):
+                select_metric="f1_macro", warmup=3, use_amp=True):
     model.to(device)
     opt = torch.optim.Adam(model.parameters(), lr=lr)
+    # linear warmup then cosine decay -- stabilises the deep Inception nets and
+    # lets them converge in far fewer than the paper's 500 epochs.
+    def _lr_factor(ep):
+        if ep < warmup:
+            return (ep + 1) / warmup
+        prog = (ep - warmup) / max(epochs - warmup, 1)
+        return 0.5 * (1 + np.cos(np.pi * min(prog, 1.0)))
+    sched = torch.optim.lr_scheduler.LambdaLR(opt, _lr_factor)
     w = None if class_weights is None else torch.tensor(class_weights, dtype=torch.float32, device=device)
     crit = nn.CrossEntropyLoss(weight=w)
     train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, drop_last=True)
+    amp = use_amp and device == "cuda"
+    scaler = torch.amp.GradScaler("cuda", enabled=amp)
 
     best, best_state, bad = -1.0, None, 0
     for ep in range(1, epochs + 1):
@@ -61,10 +71,13 @@ def train_model(model, train_ds, val_ds, *, epochs=50, lr=1e-5, batch_size=8,
         for x, y in train_loader:
             x, y = x.to(device), y.to(device)
             opt.zero_grad()
-            loss = crit(model(x), y)
-            loss.backward()
-            opt.step()
+            with torch.autocast(device_type="cuda", enabled=amp):
+                loss = crit(model(x), y)
+            scaler.scale(loss).backward()
+            scaler.step(opt)
+            scaler.update()
             tot += loss.item() * len(x)
+        sched.step()
         vp, vy = _predict_probs(model, val_ds, batch_size, device)
         vm = classification_metrics(vy, vp)
         if vm[select_metric] > best:

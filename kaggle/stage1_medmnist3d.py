@@ -23,9 +23,12 @@ SELECT_MODELS = ["resnet18", "densenet121", "inceptionv3", "inceptionresnetv2"]
 # (resnet34/50/101, densenet169) once timings are known.
 # --------------------------------------------------------------------------- #
 
+# "full" is a budget-trimmed protocol (paper: 5-fold x 3-repeat x 500ep). With
+# AMP + cosine LR the deep nets converge well inside 120 epochs; 3 folds x 1
+# repeat keeps Stage 1 near ~8 GPU-hrs so the LIDC budget survives.
 CFG = {
-    "quick": dict(folds=2, repeats=1, epochs=5,  patience=3,  mc_passes=10),
-    "full":  dict(folds=5, repeats=3, epochs=200, patience=25, mc_passes=50),
+    "quick": dict(folds=2, repeats=1, epochs=5,   patience=3,  mc_passes=10, lr=1e-4),
+    "full":  dict(folds=3, repeats=1, epochs=120, patience=20, mc_passes=50, lr=1e-4),
 }[RUN_MODE]
 
 ROOT = Path("/kaggle/working/repo")
@@ -53,7 +56,7 @@ for ds in DATASETS:
     for model in SELECT_MODELS:
         print(f"\n{'='*70}\n[{ds}] model selection: {model}\n{'='*70}", flush=True)
         summ = run_cv(ds, model, folds=CFG["folds"], repeats=CFG["repeats"],
-                      epochs=CFG["epochs"], lr=1e-4, batch_size=16, size=32,
+                      epochs=CFG["epochs"], lr=CFG["lr"], batch_size=16, size=32,
                       patience=CFG["patience"], device=device, seed=0,
                       out_dir="results/stage1_selection", select_metric="f1_macro")
         selection[ds][model] = summ["f1_macro"][0]
@@ -66,7 +69,7 @@ for ds in DATASETS:
 for ds in DATASETS:
     best = selection[ds]["_best"]
     print(f"\n{'='*70}\n[{ds}] UQ base training: {best} (dropout .5, 3 members)\n{'='*70}", flush=True)
-    run_cv(ds, best, folds=CFG["folds"], repeats=1, epochs=CFG["epochs"], lr=1e-4,
+    run_cv(ds, best, folds=CFG["folds"], repeats=1, epochs=CFG["epochs"], lr=CFG["lr"],
            batch_size=16, size=32, patience=CFG["patience"], device=device, seed=0,
            out_dir="results/stage1_uq_ckpts", save_models=True, dropout=0.5, members=3,
            select_metric="f1_macro")
