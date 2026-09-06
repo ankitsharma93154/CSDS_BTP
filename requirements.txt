@@ -1,0 +1,18 @@
+# Core (local pipeline dev + Kaggle)
+torch>=2.2
+torchvision
+numpy
+scipy
+pandas
+scikit-learn
+matplotlib
+tqdm
+pyyaml
+monai>=1.3
+medmnist>=3.0
+
+# LIDC-IDRI preprocessing (install on Kaggle / machine with the DICOM data)
+# pylidc
+# pydicom
+# SimpleITK
+# scikit-image

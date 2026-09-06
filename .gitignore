@@ -1,0 +1,25 @@
+# data & artifacts
+data/
+!data/.gitkeep
+results/
+runs/
+*.pth
+*.ckpt
+*.npz
+*.npy
+*.log
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.ipynb_checkpoints/
+
+# os / editor
+.DS_Store
+Thumbs.db
+.vscode/
+
+# paper text dump
+_paper_text.txt
