@@ -17,9 +17,8 @@ from pathlib import Path
 
 import numpy as np
 import torch
-from sklearn.model_selection import StratifiedKFold, train_test_split
 
-from src.data.medmnist3d import load_pooled, make_datasets
+from src.data.volumes import Volume3DDataset, kfold_splits
 from src.eval_utils import aggregate, classification_metrics
 from src.models.factory import build_model
 from src.train import set_seed
@@ -32,7 +31,7 @@ from src.uncertainty.predict import de_predict, emcd_predict, mcd_predict
 
 def _load(ckpt, model_name, size, dropout):
     m = build_model(model_name, 1, 2, dropout=dropout, input_size=size)
-    m.load_state_dict(torch.load(ckpt, map_location="cpu"))
+    m.load_state_dict(torch.load(ckpt, map_location="cpu", weights_only=True))
     return m
 
 
@@ -63,39 +62,36 @@ def summarise(member_probs, labels, std_mode="pred_class"):
     }
 
 
-def run(dataset, model_name, ckpt_dir, *, folds=5, repeats=1, size=32,
-        mc_passes=50, n_members=3, dropout=0.5, seed=0, thresholds=(0.5, 0.75),
-        out_dir="results/uq", device="cpu"):
-    images, labels_all, _ = load_pooled(dataset, size=size)
-    y = labels_all.reshape(-1)
+def run_arrays(images, labels, model_name, ckpt_dir, *, folds=5, repeats=1, size=32,
+               mc_passes=50, n_members=3, dropout=0.5, seed=0, thresholds=(0.5, 0.75),
+               out_dir="results/uq", device="cpu", tag_prefix="run"):
+    y = np.asarray(labels).reshape(-1)
     ckpt_dir = Path(ckpt_dir)
-    out = Path(out_dir) / f"{dataset}_{model_name}"
+    out = Path(out_dir) / f"{tag_prefix}_{model_name}"
     out.mkdir(parents=True, exist_ok=True)
 
     per_fold = {"MCD": [], "DE": [], "EMCD": []}
     sweeps = {"MCD": [], "DE": [], "EMCD": []}
 
-    for rep in range(repeats):
-        skf = StratifiedKFold(n_splits=folds, shuffle=True, random_state=seed + rep)
-        for fold, (dev_idx, test_idx) in enumerate(skf.split(np.zeros_like(y), y)):
-            set_seed(seed + rep * 100 + fold)
-            _, test_ds = make_datasets(images, labels_all, test_idx, test_idx, size, seed)
-            mpaths = _member_paths(ckpt_dir, rep, fold, n_members)
-            single = _load(mpaths[0], model_name, size, dropout)
-            ens = [_load(p, model_name, size, dropout) for p in mpaths]
+    for rep, fold, _tr, _val, test_idx in kfold_splits(y, folds, repeats, seed):
+        set_seed(seed + rep * 100 + fold)
+        test_ds = Volume3DDataset(images[test_idx], y[test_idx], size, train=False, seed=seed)
+        mpaths = _member_paths(ckpt_dir, rep, fold, n_members)
+        single = _load(mpaths[0], model_name, size, dropout)
+        ens = [_load(p, model_name, size, dropout) for p in mpaths]
 
-            runs = {
-                "MCD": mcd_predict(single, test_ds, passes=mc_passes, device=device),
-                "DE": de_predict(ens, test_ds, device=device),
-                "EMCD": emcd_predict(ens, test_ds, passes=mc_passes, device=device),
-            }
-            for name, (members, lab) in runs.items():
-                s = summarise(members, lab)
-                arr = s.pop("_arrays")
-                per_fold[name].append({**s, "rep": rep, "fold": fold})
-                sweeps[name].append(sweep_thresholds(
-                    arr["correct"], arr["ent_norm"], arr["labels"], arr["preds"]))
-                np.savez(out / f"{name}_r{rep}f{fold}.npz", **arr)
+        runs = {
+            "MCD": mcd_predict(single, test_ds, passes=mc_passes, device=device),
+            "DE": de_predict(ens, test_ds, device=device),
+            "EMCD": emcd_predict(ens, test_ds, passes=mc_passes, device=device),
+        }
+        for name, (members, lab) in runs.items():
+            s = summarise(members, lab)
+            arr = s.pop("_arrays")
+            per_fold[name].append({**s, "rep": rep, "fold": fold})
+            sweeps[name].append(sweep_thresholds(
+                arr["correct"], arr["ent_norm"], arr["labels"], arr["preds"]))
+            np.savez(out / f"{name}_r{rep}f{fold}.npz", **arr)
 
     report = {}
     for name in per_fold:
@@ -117,6 +113,13 @@ def run(dataset, model_name, ckpt_dir, *, folds=5, repeats=1, size=32,
     (out / "report.json").write_text(json.dumps(report, indent=2, default=str))
     print(json.dumps(report, indent=2, default=str))
     return report
+
+
+def run(dataset, model_name, ckpt_dir, *, size=32, **kw):
+    from src.data.medmnist3d import load_pooled
+    images, labels, _ = load_pooled(dataset, size=size)
+    return run_arrays(images, labels, model_name, ckpt_dir, size=size,
+                      tag_prefix=dataset, **kw)
 
 
 def main():
