@@ -23,9 +23,9 @@ import os, subprocess, sys, time, zipfile, json
 from pathlib import Path
 
 # --------------------------------------------------------------------------- #
-GITHUB_URL   = "https://github.com/<your-username>/<your-repo>.git"     # <-- EDIT
+GITHUB_URL   = "https://github.com/ankitsharma93154/CSDS_BTP.git"
 PHASE        = "preprocess"          # "preprocess" | "train"
-RUN_MODE     = "full"                # "quick" | "full"
+RUN_MODE     = "quick"               # "quick" first; then "full"
 
 # preprocess: point at the mounted LIDC-IDRI DICOM root (contains LIDC-IDRI-* dirs)
 LIDC_DICOM_DIR = "/kaggle/input/lidc-idri/LIDC-IDRI"

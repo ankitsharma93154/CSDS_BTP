@@ -17,27 +17,35 @@ repo scope) as the password, or install GitHub CLI (`gh auth login`).
 
 After every change I commit, push with:  `git push`
 
-## 2. Kaggle (free GPU)
+## 2. Kaggle (free GPU)  —  DONE: account + phone verified
 
-1. Sign up at kaggle.com.
-2. **Settings → Phone Verification** — required to unlock GPU/internet in notebooks.
-3. Create → New Notebook → **Settings**:
-   - Accelerator: **GPU T4 x2** (or P100)
-   - Internet: **On**
-4. Weekly quota: ~30 GPU-hours. It resets Saturday 00:00 UTC. A notebook keeps
-   running up to 12 h even if you close the tab ("Save Version → Save & Run All").
+Weekly quota: ~30 GPU-hours, resets Saturday 00:00 UTC. A saved notebook keeps
+running up to 12 h even with the tab closed.
 
-## 3. Run Stage 1
+## 3. Run Stage 1  (MedMNIST3D — paper Table 4)
 
-In a Kaggle GPU notebook, one cell:
+1. kaggle.com → **Create → New Notebook**.
+2. Right-hand panel → **Session options**:
+   - **Accelerator**: GPU T4 x2  (or P100)
+   - **Internet**: On
+3. In the first cell, paste exactly:
 
-```python
-!git clone https://github.com/<USERNAME>/<REPO>.git repo
-%cd repo
-exec(open("kaggle/stage1_medmnist3d.py").read().replace(
-    "<your-username>/<your-repo>", "<USERNAME>/<REPO>"))
-```
+   ```python
+   !git clone https://github.com/ankitsharma93154/CSDS_BTP.git repo
+   %cd repo
+   exec(open("kaggle/stage1_medmnist3d.py").read())
+   ```
 
-Set `RUN_MODE = "quick"` in the script first for a ~15 min sanity check, then
-`"full"`. Download `stage1_results.zip` from the notebook output when done and
-drop it into `results/` locally so I can analyse it.
+4. Run it. `RUN_MODE` in the script is `"quick"` — a ~15 min sanity pass over
+   2 datasets × 4 models. Check the printed summaries look sane.
+5. Edit line 19 of `kaggle/stage1_medmnist3d.py` to `RUN_MODE = "full"` (open it
+   from the file browser in the notebook, or just re-`exec` after
+   `s = open(...).read().replace('"quick"', '"full"', 1)` ) and **Save Version →
+   Save & Run All** to run the full protocol in the background (~2–3 h).
+6. When done: **Output** tab → download `stage1_results.zip`. Put it in
+   `results/` in the local repo (or attach it here) and I'll build the
+   paper-vs-ours comparison tables.
+
+## 4. Push new commits
+
+Whenever I commit changes here:  `git push`   (Kaggle re-clones on next run).

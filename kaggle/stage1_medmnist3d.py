@@ -15,8 +15,8 @@ import os, subprocess, sys, zipfile, time
 from pathlib import Path
 
 # --------------------------------------------------------------------------- #
-GITHUB_URL = "https://github.com/<your-username>/<your-repo>.git"   # <-- EDIT
-RUN_MODE   = "full"        # "quick" (smoke) or "full" (paper protocol)
+GITHUB_URL = "https://github.com/ankitsharma93154/CSDS_BTP.git"
+RUN_MODE   = "quick"       # "quick" (~15 min smoke) first; then "full" (paper protocol)
 DATASETS   = ["vessel", "synapse"]
 SELECT_MODELS = ["resnet18", "densenet121", "inceptionv3", "inceptionresnetv2"]
 # paper evaluates all 8; trim here to fit the weekly GPU budget. Add the rest
