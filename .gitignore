@@ -1,8 +1,7 @@
-# data & artifacts
-data/
-!data/.gitkeep
-results/
-runs/
+# data & artifacts  (anchored to repo root -- must NOT match src/data/)
+/data/
+/results/
+/runs/
 *.pth
 *.ckpt
 *.npz
